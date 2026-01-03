@@ -1,49 +1,67 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-// 1. إعداد المسرح
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
-
-// 2. الإضاءة
-const light = new THREE.HemisphereLight(0xffffff, 0x444444, 2);
-scene.add(light);
-
-// 3. تحميل المجسم (هنا سنضع المجسم الذي يشبه الشخص)
-let model, headMesh, mixer;
+let scene, camera, renderer, model, headMesh;
 const loader = new GLTFLoader();
 
-// ملاحظة: استبدل هذا الرابط برابط مجسمك لاحقاً
-loader.load('https://models.readyplayer.me/64c009383617185316335359.glb', (gltf) => {
-    model = gltf.scene;
-    scene.add(model);
-    camera.position.set(0, 1.6, 2); // تركيز الكاميرا على الوجه
+// إعداد المشهد الأساسي
+function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x111111);
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const light = new THREE.HemisphereLight(0xffffff, 0x444444, 3);
+    scene.add(light);
+    camera.position.set(0, 1.6, 0.7); // تقريب الكاميرا للوجه جداً
+}
+
+// وظيفة تحميل المجسم الجديد
+function loadAvatar(url) {
+    if (model) scene.remove(model); // حذف المجسم القديم إن وجد
     
-    model.traverse(o => {
-        if (o.morphTargetDictionary) headMesh = o; // تحديد عضلات الوجه
+    loader.load(url, (gltf) => {
+        model = gltf.scene;
+        scene.add(model);
+        
+        model.traverse(o => {
+            if (o.morphTargetDictionary) headMesh = o;
+        });
+        document.getElementById('talkBtn').style.display = 'inline-block';
     });
+}
+
+// استقبال البيانات من نافذة التصوير
+window.addEventListener('message', (event) => {
+    const url = event.data;
+    if (url && url.toString().startsWith('https://models.readyplayer.me')) {
+        document.getElementById('avatar-frame').style.display = 'none';
+        loadAvatar(url);
+    }
 });
 
-// 4. كود التنفس وحركة الوجه
+document.getElementById('createBtn').onclick = () => {
+    document.getElementById('avatar-frame').style.display = 'block';
+};
+
 function animate() {
     requestAnimationFrame(animate);
     const time = performance.now() * 0.001;
-
     if (model) {
-        // تحريك الصدر (تنفس)
+        // 1. تنفس دقيق (حركة الصدر والكتف)
         const spine = model.getObjectByName('Spine2');
-        if (spine) spine.rotation.x = Math.sin(time * 2) * 0.03;
-        
-        // رمش العيون تلقائياً
+        if (spine) spine.rotation.x = Math.sin(time * 1.5) * 0.02;
+
+        // 2. رمش العيون
         if (headMesh) {
-            const blink = Math.sin(time * 4) > 0.98 ? 1 : 0;
             const blinkIdx = headMesh.morphTargetDictionary['eyeBlinkLeft'];
-            headMesh.morphTargetInfluences[blinkIdx] = blink;
+            headMesh.morphTargetInfluences[blinkIdx] = Math.sin(time * 4) > 0.98 ? 1 : 0;
         }
     }
     renderer.render(scene, camera);
 }
+
+init();
 animate();
