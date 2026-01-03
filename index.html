@@ -2,28 +2,23 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>المجسم الشخصي التفاعلي</title>
+    <title>AI Digital Twin - Full</title>
     <style>
-        body { margin: 0; background: #111; overflow: hidden; font-family: sans-serif; }
-        #avatar-frame { 
-            display: none; position: absolute; top: 5%; left: 5%; 
-            width: 90%; height: 80%; z-index: 100; border: none; border-radius: 20px;
-        }
-        #controls { position: absolute; bottom: 20px; width: 100%; text-align: center; z-index: 10; }
-        button { padding: 15px 30px; cursor: pointer; border-radius: 10px; border: none; background: #00ff88; color: #000; font-weight: bold; margin: 5px; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; }
+        #avatar-frame { display: none; position: absolute; top: 10%; left: 10%; width: 80%; height: 80%; z-index: 100; border: none; border-radius: 20px; }
+        #ui { position: absolute; bottom: 30px; width: 100%; display: flex; justify-content: center; gap: 15px; z-index: 10; }
+        button { padding: 15px 30px; border-radius: 50px; border: none; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .setup { background: #00ff88; color: #000; }
+        .talk { background: #2196F3; color: #fff; display: none; }
     </style>
 </head>
 <body>
     <iframe id="avatar-frame" src="https://demo.readyplayer.me/avatar?frameApi"></iframe>
-
-    <div id="controls">
-        <button id="createBtn">صوّر نفسك وانشئ مجسمك</button>
-        <button id="talkBtn" style="display:none;">تحدث مع نسختك</button>
+    <div id="ui">
+        <button id="setupBtn" class="setup">إنشاء المجسم من صورتك</button>
+        <button id="talkBtn" class="talk">اضغط للتحدث</button>
     </div>
-
-    <script type="importmap">
-        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
-    </script>
+    <script type="importmap"> { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } } </script>
     <script type="module" src="main.js"></script>
 </body>
 </html>
