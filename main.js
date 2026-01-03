@@ -4,82 +4,133 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 let scene, camera, renderer, model, headMesh, clock = new THREE.Clock();
 const loader = new GLTFLoader();
 
-// 1. تشغيل المشهد
+// 1. تهيئة المشهد والإضاءة
 function init() {
     scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a0a);
+    
     camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 1.6, 0.7);
+
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
     document.body.appendChild(renderer.domElement);
-    scene.add(new THREE.AmbientLight(0xffffff, 1), new THREE.DirectionalLight(0xffffff, 2));
-    camera.position.set(0, 1.6, 0.7);
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    scene.add(ambientLight);
+    
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+    dirLight.position.set(2, 2, 5);
+    scene.add(dirLight);
 }
 
-// 2. معالجة المجسم
-window.addEventListener('message', (e) => {
-    if (typeof e.data === 'string' && e.data.startsWith('https://models.readyplayer.me')) {
+// 2. معالجة رابط المجسم القادم من Ready Player Me
+window.addEventListener('message', (event) => {
+    const url = event.data;
+    if (typeof url === 'string' && url.startsWith('https://models.readyplayer.me')) {
         document.getElementById('avatar-frame').style.display = 'none';
-        loader.load(e.data, (gltf) => {
-            if (model) scene.remove(model);
-            model = gltf.scene; scene.add(model);
-            model.traverse(o => { if (o.morphTargetDictionary) headMesh = o; });
-            document.getElementById('talkBtn').style.display = 'block';
-        });
+        loadAvatar(url);
     }
 });
 
-document.getElementById('setupBtn').onclick = () => document.getElementById('avatar-frame').style.display = 'block';
+function loadAvatar(url) {
+    loader.load(url, (gltf) => {
+        if (model) scene.remove(model);
+        model = gltf.scene;
+        scene.add(model);
+        
+        model.traverse(o => {
+            if (o.morphTargetDictionary) headMesh = o;
+        });
+        
+        document.getElementById('talkBtn').style.display = 'block';
+    });
+}
 
-// 3. السمع وتحريك الفم
+document.getElementById('setupBtn').onclick = () => {
+    document.getElementById('avatar-frame').style.display = 'block';
+};
+
+// 3. محرك الكلام والتعرف على الصوت (بدون بايثون)
+const talkBtn = document.getElementById('talkBtn');
 const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
 recognition.lang = 'ar-SA';
 
-document.getElementById('talkBtn').onclick = () => recognition.start();
-
-recognition.onresult = async (event) => {
-    const text = event.results[0][0].transcript;
-    const res = await fetch('http://localhost:5000/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text })
-    });
-    const data = await res.json();
-    const audio = new Audio(data.audioUrl + "?t=" + Date.now());
-    const ctx = new AudioContext();
-    const analyser = ctx.createAnalyser();
-    const source = ctx.createMediaElementSource(audio);
-    source.connect(analyser); analyser.connect(ctx.destination);
-    audio.play();
-
-    function sync() {
-        if (!audio.paused) {
-            const d = new Uint8Array(analyser.frequencyBinCount);
-            analyser.getByteFrequencyData(d);
-            let v = d.reduce((a, b) => a + b) / d.length;
-            if (headMesh) {
-                const i = headMesh.morphTargetDictionary['jawOpen'] || headMesh.morphTargetDictionary['mouthOpen'];
-                headMesh.morphTargetInfluences[i] = v / 50;
-            }
-            requestAnimationFrame(sync);
-        }
-    }
-    sync();
+talkBtn.onclick = () => {
+    recognition.start();
+    talkBtn.innerText = "جاري الاستماع...";
 };
 
-// 4. التحريك التلقائي (تنفس + عيون + مفاصل)
+recognition.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    talkBtn.innerText = "نسختك ترد عليك...";
+    
+    const reply = `أهلاً بك، لقد سمعتك تقول: ${transcript}. أنا نسختك الرقمية وأتفاعل معك الآن.`;
+    speakAndAnimate(reply);
+};
+
+function speakAndAnimate(text) {
+    const speech = new SpeechSynthesisUtterance(text);
+    speech.lang = 'ar-SA';
+    speech.rate = 1.0;
+
+    // محاكاة حركة الفم أثناء الكلام
+    speech.onboundary = (event) => {
+        if (headMesh) {
+            const jawIdx = headMesh.morphTargetDictionary['jawOpen'] || headMesh.morphTargetDictionary['mouthOpen'];
+            headMesh.morphTargetInfluences[jawIdx] = 1;
+            setTimeout(() => headMesh.morphTargetInfluences[jawIdx] = 0, 100);
+        }
+    };
+
+    speech.onend = () => {
+        talkBtn.innerText = "ابدأ التحدث الآن";
+        if (headMesh) {
+            const jawIdx = headMesh.morphTargetDictionary['jawOpen'] || headMesh.morphTargetDictionary['mouthOpen'];
+            headMesh.morphTargetInfluences[jawIdx] = 0;
+        }
+    };
+
+    window.speechSynthesis.speak(speech);
+}
+
+// 4. حلقة التحريك المستمر (تنفس، رمش، مفاصل)
 function animate() {
     requestAnimationFrame(animate);
-    const t = clock.getElapsedTime();
+    const delta = clock.getElapsedTime();
+
     if (model) {
+        // تنفس الصدر
         const spine = model.getObjectByName('Spine2');
-        if (spine) spine.rotation.x = Math.sin(t * 1.5) * 0.02; // تنفس
-        if (headMesh) { // رمش
-            const b = Math.sin(t * 4) > 0.98 ? 1 : 0;
-            headMesh.morphTargetInfluences[headMesh.morphTargetDictionary['eyeBlinkLeft']] = b;
-            headMesh.morphTargetInfluences[headMesh.morphTargetDictionary['eyeBlinkRight']] = b;
+        if (spine) spine.rotation.x = Math.sin(delta * 1.5) * 0.02;
+
+        // رمش العيون التلقائي
+        if (headMesh) {
+            const blink = Math.sin(delta * 4) > 0.98 ? 1 : 0;
+            const bLeft = headMesh.morphTargetDictionary['eyeBlinkLeft'];
+            const bRight = headMesh.morphTargetDictionary['eyeBlinkRight'];
+            headMesh.morphTargetInfluences[bLeft] = blink;
+            headMesh.morphTargetInfluences[bRight] = blink;
         }
-        model.traverse(o => { if (o.name.includes('Hand') && o.isBone) o.rotation.z += Math.sin(t * 2) * 0.001; });
+
+        // حركة أصابع خفيفة (تفاعل طبيعي)
+        model.traverse(o => {
+            if (o.isBone && o.name.includes('Hand')) {
+                o.rotation.y += Math.sin(delta * 2) * 0.0005;
+            }
+        });
     }
+    
     renderer.render(scene, camera);
 }
-init(); animate();
+
+init();
+animate();
+
+// ضبط الحجم عند تغيير نافذة المتصفح
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
