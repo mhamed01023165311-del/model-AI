@@ -1,15 +1,22 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
+from gtts import gTTS
+import os
 
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/ask', methods=['POST'])
-def ask_ai():
-    user_message = request.json.get('message')
-    # هنا يتم ربط GPT-4 أو أي نموذج ذكاء اصطناعي
-    ai_response = "أهلاً بك، أنا نسختك الرقمية. كيف يمكنني مساعدك؟"
-    return jsonify({"reply": ai_response})
+@app.route('/chat', methods=['POST'])
+def chat():
+    msg = request.json.get('message', '')
+    reply = f"بصفتي نسختك الرقمية، لقد سمعت أنك تقول: {msg}. أنا أتحرك وأتفاعل معك الآن."
+    tts = gTTS(text=reply, lang='ar')
+    tts.save("reply.mp3")
+    return jsonify({"audioUrl": "http://localhost:5000/get_audio"})
+
+@app.route('/get_audio')
+def get_audio():
+    return send_file("reply.mp3", mimetype="audio/mp3")
 
 if __name__ == '__main__':
     app.run(port=5000)
