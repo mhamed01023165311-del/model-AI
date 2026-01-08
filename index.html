@@ -1,139 +1,72 @@
 <!DOCTYPE html>
-<html lang="ar">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FBX Model Sign Language</title>
+    <title>مشروع الذكاء الاصطناعي - النسخة الرقمية</title>
     <style>
-        body { margin: 0; overflow: hidden; }
-        #talkBtn {
+        body { 
+            margin: 0; 
+            background: #0d1117; 
+            overflow: hidden; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        }
+        /* شريط التحكم السفلي */
+        #controls { 
+            position: absolute; 
+            bottom: 30px; 
+            width: 100%; 
+            display: flex; 
+            justify-content: center; 
+            gap: 20px; 
+            z-index: 10; 
+        }
+        button { 
+            padding: 12px 25px; 
+            border-radius: 10px; 
+            border: none; 
+            cursor: pointer; 
+            font-weight: bold; 
+            font-size: 16px; 
+            transition: 0.3s; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        #talkBtn { 
+            background: #238636; 
+            color: white; 
+        }
+        #talkBtn:hover { background: #2ea043; transform: scale(1.05); }
+        
+        /* مؤشر التحميل */
+        #loader-info {
             position: absolute;
-            top: 20px;
-            left: 20px;
-            padding: 10px 20px;
-            font-size: 18px;
-            z-index: 10;
-            cursor: pointer;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            text-align: center;
         }
     </style>
 </head>
 <body>
-    <button id="talkBtn">تكلم</button>
 
-    <script type="module">
-        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-        import { FBXLoader } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/FBXLoader.js';
-        import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+    <div id="loader-info">جاري تحضير المجسم الخاص بك...</div>
 
-        // ----- Scene & Renderer -----
-        let scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x111111);
+    <div id="controls">
+        <button id="talkBtn">ابدأ التحدث (لغة الإشارة)</button>
+    </div>
 
-        let camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 1.5, 3);
-
-        let renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.outputEncoding = THREE.sRGBEncoding;
-        document.body.appendChild(renderer.domElement);
-
-        let controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-
-        // ----- Lights -----
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1);
-        scene.add(ambientLight);
-
-        const spotLight = new THREE.SpotLight(0xffffff, 1);
-        spotLight.position.set(0, 5, 5);
-        scene.add(spotLight);
-
-        // ----- Loader -----
-        const loader = new FBXLoader();
-        let model;
-
-        // ----- Load FBX Model -----
-        loader.load('models/Stylized_Paladin.fbx', (fbx) => {
-            model = fbx;
-            model.position.y = -1;
-            scene.add(model);
-        });
-
-        // ----- Gestures Mapping -----
-        const gestures = {
-            "hello": {
-                "RightArm": {x: 0.5, y:0, z:0},
-                "LeftArm": {x:0, y:0, z:0},
-                "Spine": {x:0.1, y:0, z:0}
-            },
-            "thank you": {
-                "RightArm": {x:0.3, y:0, z:0},
-                "LeftArm": {x:0.2, y:0, z:0},
-                "Spine": {x:0.05, y:0, z:0}
-            },
-            "yes": {
-                "RightArm": {x:0.2, y:0.1, z:0},
-                "LeftArm": {x:0, y:0, z:0},
-                "Spine": {x:0.05, y:0, z:0}
-            },
-            "no": {
-                "RightArm": {x:-0.2, y:0, z:0},
-                "LeftArm": {x:0, y:0, z:0},
-                "Spine": {x:-0.05, y:0, z:0}
-            }
-        };
-
-        // ----- Convert AI Text to Gestures -----
-        function aiToGesture(text) {
-            return gestures[text.toLowerCase()] || {};
+    <script async src="https://unpkg.com/es-module-shims@1.8.0/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
         }
-
-        // ----- Move Bones Function -----
-        function moveBones(actions) {
-            if (!model) return;
-
-            model.traverse(o => {
-                if (o.isBone && actions[o.name] !== undefined) {
-                    o.rotation.x += (actions[o.name].x - o.rotation.x) * 0.2;
-                    o.rotation.y += (actions[o.name].y - o.rotation.y) * 0.2;
-                    o.rotation.z += (actions[o.name].z - o.rotation.z) * 0.2;
-                }
-            });
-        }
-
-        // ----- Speech Recognition -----
-        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-        recognition.lang = 'ar-SA';
-        recognition.interimResults = false;
-
-        document.getElementById('talkBtn').onclick = () => recognition.start();
-
-        recognition.onresult = (event) => {
-            const text = event.results[0][0].transcript;
-            const actions = aiToGesture(text);
-            moveBones(actions);
-        };
-
-        // ----- Animate Loop -----
-        function animate() {
-            requestAnimationFrame(animate);
-
-            if (model) {
-                const t = Date.now() * 0.001;
-                model.rotation.y = Math.sin(t * 0.5) * 0.05;
-            }
-
-            controls.update();
-            renderer.render(scene, camera);
-        }
-        animate();
-
-        // ----- Responsive -----
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+    }
     </script>
+
+    <script type="module" src="main.js"></script>
+
 </body>
 </html>
