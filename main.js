@@ -8,13 +8,21 @@ function init() {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x050505);
     camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 1.2, 3.5); // زاوية تجيب الجسم كله
+    // الكاميرا بعيدة عشان تشوف الجسم كله وحركة الإيد
+    camera.position.set(0, 1.2, 4); 
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
     scene.add(new THREE.AmbientLight(0xffffff, 1), new THREE.DirectionalLight(0xffffff, 2));
 }
+
+// تعديل الرابط لإجبار الكاميرا على الظهور
+document.getElementById('setupBtn').onclick = () => {
+    const frame = document.getElementById('avatar-frame');
+    frame.src = "https://demo.readyplayer.me/avatar?frameApi&clearCache"; // تحديث الرابط لطلب الكاميرا
+    frame.style.display = 'block';
+};
 
 window.addEventListener('message', (e) => {
     if (typeof e.data === 'string' && e.data.startsWith('https://models.readyplayer.me')) {
@@ -30,9 +38,7 @@ window.addEventListener('message', (e) => {
     }
 });
 
-document.getElementById('setupBtn').onclick = () => document.getElementById('avatar-frame').style.display = 'block';
-
-// --- محرك الكلام والحركة التفاعلية ---
+// --- محرك الذكاء الاصطناعي للحركة والصوت الفخم ---
 const talkBtn = document.getElementById('talkBtn');
 const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
 recognition.lang = 'ar-SA';
@@ -43,55 +49,69 @@ recognition.onresult = (event) => {
     const text = event.results[0][0].transcript;
     const speech = new SpeechSynthesisUtterance(text);
     
-    // ضبط أفضل صوت عربي متاح في جهازك
+    // محرك اختيار أفضل صوت عربي (رصين)
     const voices = window.speechSynthesis.getVoices();
-    speech.voice = voices.find(v => v.lang.includes('ar')) || voices[0];
-    speech.pitch = 1.1; // نبرة صوت طبيعية
-    speech.rate = 0.9;  // سرعة متزنة
+    speech.voice = voices.find(v => v.lang.includes('ar') && (v.name.includes('Google') || v.name.includes('Maged'))) || voices.find(v => v.lang.includes('ar')) || voices[0];
+    speech.pitch = 1.0; 
+    speech.rate = 0.85; // سرعة هادية وفخمة
 
-    speech.onstart = () => { talkBtn.innerText = "نسختك تتحدث الآن..."; };
-    
     speech.onboundary = (e) => {
+        // 1. حركة الفم
         if (headMesh) {
             const jawIdx = headMesh.morphTargetDictionary['jawOpen'] || headMesh.morphTargetDictionary['mouthOpen'];
-            headMesh.morphTargetInfluences[jawIdx] = 1; 
-            setTimeout(() => { if(headMesh) headMesh.morphTargetInfluences[jawIdx] = 0; }, 100);
+            headMesh.morphTargetInfluences[jawIdx] = 1.0; 
+            setTimeout(() => { if(headMesh) headMesh.morphTargetInfluences[jawIdx] = 0; }, 70);
         }
-        // إضافة حركة عشوائية للجسم مع كل كلمة (يمين وشمال)
+        
+        // 2. حركة الجسم كله (التفاعل مع الشاشة)
         if (model) {
-            model.rotation.y = (Math.random() - 0.5) * 0.2; // يميل يمين وشمال
+            // المجسم بيلف جسمه يمين وشمال كأنه بيكلم حد
+            model.rotation.y = Math.sin(Date.now() * 0.005) * 0.3; 
+            
+            // حركة مفاصل العمود الفقري (إيماءات)
             const spine = model.getObjectByName('Spine2');
-            if (spine) spine.rotation.z = (Math.random() - 0.5) * 0.1; // هزة كتف
+            if (spine) spine.rotation.z = (Math.random() - 0.5) * 0.2;
+            
+            // حركة الإيد كأنه بيشرح (Gestures)
+            const lArm = model.getObjectByName('LeftArm');
+            const rArm = model.getObjectByName('RightArm');
+            if(lArm) lArm.rotation.x = -0.8 + (Math.random() * 0.4);
+            if(rArm) rArm.rotation.x = -0.8 + (Math.random() * 0.4);
         }
     };
 
     speech.onend = () => {
-        talkBtn.innerText = "تحدث مرة أخرى";
-        if (model) { model.rotation.y = 0; } // الرجوع للوضع الطبيعي
+        if (model) {
+            // العودة لوضع الثبات بعد الكلام
+            model.rotation.y = 0;
+            const arms = ['LeftArm', 'RightArm'];
+            arms.forEach(name => {
+                const arm = model.getObjectByName(name);
+                if(arm) arm.rotation.x = 0;
+            });
+        }
+        talkBtn.innerText = "ابدأ التحدث الآن";
     };
 
     window.speechSynthesis.speak(speech);
+    talkBtn.innerText = "نسختك تتحدث الآن...";
 };
 
 function animate() {
     requestAnimationFrame(animate);
     const t = clock.getElapsedTime();
     if (model) {
-        // حركة التنفس الطبيعية
+        // حركة التنفس الطبيعية للجسم كله
         const spine = model.getObjectByName('Spine2');
-        if (spine) spine.rotation.x = Math.sin(t * 1.5) * 0.03;
+        if (spine) spine.rotation.x = Math.sin(t * 1.5) * 0.04;
 
-        // حركة الإيد المستمرة (Gesticulation)
-        const lArm = model.getObjectByName('LeftArm');
-        const rArm = model.getObjectByName('RightArm');
-        if(lArm) lArm.rotation.z = Math.sin(t * 2) * 0.1 + 0.3;
-        if(rArm) rArm.rotation.z = -Math.sin(t * 2) * 0.1 - 0.3;
-
-        // حركة رمش العيون
+        // رمش العيون التلقائي
         if (headMesh) {
             const blink = Math.sin(t * 4) > 0.98 ? 1 : 0;
-            headMesh.morphTargetInfluences[headMesh.morphTargetDictionary['eyeBlinkLeft']] = blink;
-            headMesh.morphTargetInfluences[headMesh.morphTargetDictionary['eyeBlinkRight']] = blink;
+            const bLeft = headMesh.morphTargetDictionary['eyeBlinkLeft'];
+            const bRight = headMesh.morphTargetDictionary['eyeBlinkRight'];
+            headMesh.morphTargetInfluences[bLeft] = blink;
+            headMesh.morphTargetInfluences[bRight] = blink;
         }
     }
     renderer.render(scene, camera);
