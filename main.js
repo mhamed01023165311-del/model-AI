@@ -8,9 +8,10 @@ function init() {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x050505);
     
-    // تعديل الكاميرا عشان تجيب الجسم كله (Full Body View)
-    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(0, 1.2, 3); // رجعنا الكاميرا لورا (3) ونزلناها لمستوى الجسم (1.2)
+    // --- تعديل جذري للكاميرا لتظهر الجسم كاملاً ---
+    // القيمة الثالثة (5) تعني أننا أبعدنا الكاميرا جداً للخلف لتأكيد ظهور الأرجل والأيدي
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 1.0, 5); 
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -26,7 +27,13 @@ window.addEventListener('message', (e) => {
             if (model) scene.remove(model);
             model = gltf.scene; 
             scene.add(model);
-            model.traverse(o => { if (o.morphTargetDictionary) headMesh = o; });
+            
+            // ضبط مكان المجسم ليكون في المنتصف تماماً
+            model.position.y = -1; 
+
+            model.traverse(o => { 
+                if (o.morphTargetDictionary) headMesh = o; 
+            });
             document.getElementById('talkBtn').style.display = 'block';
         });
     }
@@ -34,31 +41,31 @@ window.addEventListener('message', (e) => {
 
 document.getElementById('setupBtn').onclick = () => document.getElementById('avatar-frame').style.display = 'block';
 
-// --- محرك الكلام المعدل (حركة شفايف + صوت سيري) ---
+// --- ضبط الصوت (سيري) وتحريك الشفايف ---
+const talkBtn = document.getElementById('talkBtn');
 const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
 recognition.lang = 'ar-SA';
 
-document.getElementById('talkBtn').onclick = () => recognition.start();
+talkBtn.onclick = () => recognition.start();
 
 recognition.onresult = (event) => {
     const text = event.results[0][0].transcript;
-    const speech = new SpeechSynthesisUtterance(`لقد سمعتك تقول ${text}. أنا هنا لمساعدتك.`);
+    const speech = new SpeechSynthesisUtterance(`لقد سمعتك تقول ${text}. كيف يمكنني مساعدتك؟`);
     
-    // 1. تثبيت الصوت (محاكاة صوت سيري)
+    // محاولة اختيار صوت ناعم (سيري)
     const voices = window.speechSynthesis.getVoices();
-    // بنحاول نلاقي صوت أنثوي ناعم
-    speech.voice = voices.find(v => v.name.includes('Google') || v.name.includes('Female')) || voices[0];
-    speech.lang = 'ar-SA';
-    speech.pitch = 1.2; // تعلية الطبقة شوية عشان يبان ذكاء اصطناعي ناعم
-    speech.rate = 0.9;  // سرعة هادية
+    // البحث عن صوت نسائي عربي أو صوت جوجل الناعم
+    speech.voice = voices.find(v => v.lang.includes('ar') && (v.name.includes('Female') || v.name.includes('Google'))) || voices[0];
+    speech.pitch = 1.3; // جعل الصوت أنعم وأرفع
+    speech.rate = 1.0;
 
-    // 2. حركة الشفايف المتزامنة
+    // تحريك الشفايف المتزامن مع ذبذبات الكلمات
     speech.onboundary = (e) => {
         if (headMesh) {
             const jawIdx = headMesh.morphTargetDictionary['jawOpen'] || headMesh.morphTargetDictionary['mouthOpen'];
-            // الحركة هنا بقت عشوائية سريعة أثناء الكلام عشان تبان طبيعية أكتر
-            headMesh.morphTargetInfluences[jawIdx] = Math.random() * 0.8 + 0.2; 
-            setTimeout(() => { if(headMesh) headMesh.morphTargetInfluences[jawIdx] = 0; }, 80);
+            // حركة شفايف قوية وواضحة
+            headMesh.morphTargetInfluences[jawIdx] = 1.0; 
+            setTimeout(() => { if(headMesh) headMesh.morphTargetInfluences[jawIdx] = 0; }, 100);
         }
     };
 
@@ -76,17 +83,17 @@ function animate() {
     requestAnimationFrame(animate);
     const t = clock.getElapsedTime();
     if (model) {
-        // حركة الجسم (التنفس)
+        // 1. حركة تنفس الصدر
         const spine = model.getObjectByName('Spine2');
-        if (spine) spine.rotation.x = Math.sin(t * 1.5) * 0.02;
+        if (spine) spine.rotation.x = Math.sin(t * 1.5) * 0.03;
 
-        // حركة الإيد (Natural Sway) - المجسم هيفضل يتحرك كأنه حي
+        // 2. حركة الأذرع والأيدي (لإظهار الحيوية في الجسم كامل)
         const leftArm = model.getObjectByName('LeftArm');
         const rightArm = model.getObjectByName('RightArm');
-        if(leftArm) leftArm.rotation.z = Math.sin(t) * 0.05 + 0.1;
-        if(rightArm) rightArm.rotation.z = -Math.sin(t) * 0.05 - 0.1;
+        if(leftArm) leftArm.rotation.z = Math.sin(t) * 0.1 + 0.2;
+        if(rightArm) rightArm.rotation.z = -Math.sin(t) * 0.1 - 0.2;
 
-        // رمش العيون
+        // 3. رمش العيون
         if (headMesh) {
             const blink = Math.sin(t * 4) > 0.98 ? 1 : 0;
             headMesh.morphTargetInfluences[headMesh.morphTargetDictionary['eyeBlinkLeft']] = blink;
