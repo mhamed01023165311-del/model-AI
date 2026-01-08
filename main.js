@@ -8,19 +8,25 @@ function init() {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x050505);
     camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    // الكاميرا بعيدة عشان تشوف الجسم كله وحركة الإيد
-    camera.position.set(0, 1.2, 4); 
+    // تقريب المسافة قليلاً لتفاصيل لغة الجسد
+    camera.position.set(0, 1.3, 2.8); 
 
-    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputEncoding = THREE.sRGBEncoding;
     document.body.appendChild(renderer.domElement);
-    scene.add(new THREE.AmbientLight(0xffffff, 1), new THREE.DirectionalLight(0xffffff, 2));
+    
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+    scene.add(ambientLight);
+    const spotLight = new THREE.SpotLight(0xffffff, 1);
+    spotLight.position.set(0, 5, 5);
+    scene.add(spotLight);
 }
 
-// تعديل الرابط لإجبار الكاميرا على الظهور
+// رابط الأفاتار - تأكد من الضغط على (+) لرفع صورتك
 document.getElementById('setupBtn').onclick = () => {
     const frame = document.getElementById('avatar-frame');
-    frame.src = "https://demo.readyplayer.me/avatar?frameApi&clearCache"; // تحديث الرابط لطلب الكاميرا
+    frame.src = "https://demo.readyplayer.me/avatar?frameApi";
     frame.style.display = 'block';
 };
 
@@ -31,14 +37,14 @@ window.addEventListener('message', (e) => {
             if (model) scene.remove(model);
             model = gltf.scene; 
             scene.add(model);
-            model.position.y = -1; 
+            model.position.y = -1;
             model.traverse(o => { if (o.morphTargetDictionary) headMesh = o; });
             document.getElementById('talkBtn').style.display = 'block';
         });
     }
 });
 
-// --- محرك الذكاء الاصطناعي للحركة والصوت الفخم ---
+// --- محرك لغة الإشارة والتعبيرات الاحترافية ---
 const talkBtn = document.getElementById('talkBtn');
 const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
 recognition.lang = 'ar-SA';
@@ -48,70 +54,62 @@ talkBtn.onclick = () => recognition.start();
 recognition.onresult = (event) => {
     const text = event.results[0][0].transcript;
     const speech = new SpeechSynthesisUtterance(text);
-    
-    // محرك اختيار أفضل صوت عربي (رصين)
-    const voices = window.speechSynthesis.getVoices();
-    speech.voice = voices.find(v => v.lang.includes('ar') && (v.name.includes('Google') || v.name.includes('Maged'))) || voices.find(v => v.lang.includes('ar')) || voices[0];
-    speech.pitch = 1.0; 
-    speech.rate = 0.85; // سرعة هادية وفخمة
+    speech.lang = 'ar-SA';
+    speech.rate = 0.85;
 
     speech.onboundary = (e) => {
-        // 1. حركة الفم
         if (headMesh) {
-            const jawIdx = headMesh.morphTargetDictionary['jawOpen'] || headMesh.morphTargetDictionary['mouthOpen'];
-            headMesh.morphTargetInfluences[jawIdx] = 1.0; 
-            setTimeout(() => { if(headMesh) headMesh.morphTargetInfluences[jawIdx] = 0; }, 70);
-        }
-        
-        // 2. حركة الجسم كله (التفاعل مع الشاشة)
-        if (model) {
-            // المجسم بيلف جسمه يمين وشمال كأنه بيكلم حد
-            model.rotation.y = Math.sin(Date.now() * 0.005) * 0.3; 
+            // 1. حركة الفم العميقة
+            const jawIdx = headMesh.morphTargetDictionary['jawOpen'];
+            headMesh.morphTargetInfluences[jawIdx] = 0.8 + Math.random() * 0.2;
             
-            // حركة مفاصل العمود الفقري (إيماءات)
-            const spine = model.getObjectByName('Spine2');
-            if (spine) spine.rotation.z = (Math.random() - 0.5) * 0.2;
-            
-            // حركة الإيد كأنه بيشرح (Gestures)
-            const lArm = model.getObjectByName('LeftArm');
-            const rArm = model.getObjectByName('RightArm');
-            if(lArm) lArm.rotation.x = -0.8 + (Math.random() * 0.4);
-            if(rArm) rArm.rotation.x = -0.8 + (Math.random() * 0.4);
-        }
-    };
+            // 2. تعبيرات "التركيز" (تضييق العين ورفع الحاجب)
+            const squint = headMesh.morphTargetDictionary['eyeSquintLeft'];
+            const brow = headMesh.morphTargetDictionary['browInnerUp'];
+            headMesh.morphTargetInfluences[squint] = 0.5;
+            headMesh.morphTargetInfluences[brow] = 0.7;
 
-    speech.onend = () => {
-        if (model) {
-            // العودة لوضع الثبات بعد الكلام
-            model.rotation.y = 0;
-            const arms = ['LeftArm', 'RightArm'];
-            arms.forEach(name => {
-                const arm = model.getObjectByName(name);
-                if(arm) arm.rotation.x = 0;
-            });
+            setTimeout(() => {
+                headMesh.morphTargetInfluences[jawIdx] = 0;
+                headMesh.morphTargetInfluences[squint] = 0;
+                headMesh.morphTargetInfluences[brow] = 0;
+            }, 120);
         }
-        talkBtn.innerText = "ابدأ التحدث الآن";
+
+        // 3. لغة الإشارة (تحريك الأصابع والرسغ بشكل معقد)
+        if (model) {
+            model.traverse(o => {
+                if (o.isBone && o.name.includes('Finger')) {
+                    o.rotation.x = Math.sin(Date.now() * 0.01) * 0.4;
+                }
+                if (o.isBone && o.name.includes('Hand')) {
+                    o.rotation.y = (Math.random() - 0.5) * 0.6;
+                }
+            });
+            // تمايل الجسم بالكامل يميناً ويساراً بسلاسة
+            model.rotation.y = Math.sin(Date.now() * 0.002) * 0.15;
+        }
     };
 
     window.speechSynthesis.speak(speech);
-    talkBtn.innerText = "نسختك تتحدث الآن...";
 };
 
 function animate() {
     requestAnimationFrame(animate);
     const t = clock.getElapsedTime();
     if (model) {
-        // حركة التنفس الطبيعية للجسم كله
+        // حركة "الحياة" المستمرة حتى في حالة الصمت
         const spine = model.getObjectByName('Spine2');
-        if (spine) spine.rotation.x = Math.sin(t * 1.5) * 0.04;
-
-        // رمش العيون التلقائي
+        if (spine) {
+            spine.rotation.x = Math.sin(t * 1.2) * 0.03; // تنفس
+            spine.rotation.y = Math.cos(t * 0.5) * 0.02; // تمايل بسيط
+        }
+        
+        // رمش العيون
         if (headMesh) {
             const blink = Math.sin(t * 4) > 0.98 ? 1 : 0;
-            const bLeft = headMesh.morphTargetDictionary['eyeBlinkLeft'];
-            const bRight = headMesh.morphTargetDictionary['eyeBlinkRight'];
-            headMesh.morphTargetInfluences[bLeft] = blink;
-            headMesh.morphTargetInfluences[bRight] = blink;
+            headMesh.morphTargetInfluences[headMesh.morphTargetDictionary['eyeBlinkLeft']] = blink;
+            headMesh.morphTargetInfluences[headMesh.morphTargetDictionary['eyeBlinkRight']] = blink;
         }
     }
     renderer.render(scene, camera);
