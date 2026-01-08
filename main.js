@@ -1,179 +1,112 @@
+// ==== main.js ====
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-let scene, camera, renderer, model, headMesh, mixer;
-const clock = new THREE.Clock();
+// ----- Scene & Renderer -----
+let scene = new THREE.Scene();
+scene.background = new THREE.Color(0x111111);
+
+let camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 1.5, 3);
+
+let renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputEncoding = THREE.sRGBEncoding;
+document.body.appendChild(renderer.domElement);
+
+let controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+// ----- Lights -----
+const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+scene.add(ambientLight);
+
+const spotLight = new THREE.SpotLight(0xffffff, 1);
+spotLight.position.set(0, 5, 5);
+scene.add(spotLight);
+
+// ----- Loader -----
 const loader = new GLTFLoader();
+let model;
 
-// ================= INIT =================
-function init() {
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x050505);
-
-    camera = new THREE.PerspectiveCamera(
-        45,
-        window.innerWidth / window.innerHeight,
-        0.1,
-        1000
-    );
-    camera.position.set(0, 1.4, 2.8);
-
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.outputEncoding = THREE.sRGBEncoding;
-    document.body.appendChild(renderer.domElement);
-
-    scene.add(new THREE.AmbientLight(0xffffff, 1.3));
-
-    const light = new THREE.SpotLight(0xffffff, 1);
-    light.position.set(0, 5, 5);
-    scene.add(light);
-
-    window.addEventListener('resize', onResize);
-}
-
-function onResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-}
-
-// ================= READY PLAYER ME =================
-document.getElementById('setupBtn').onclick = () => {
-    const frame = document.getElementById('avatar-frame');
-    frame.src =
-        "https://demo.readyplayer.me/avatar?frameApi&clearCache&bodyType=fullbody";
-    frame.style.display = 'block';
-};
-
-window.addEventListener('message', (e) => {
-    if (typeof e.data === 'string' && e.data.includes('models.readyplayer.me')) {
-        document.getElementById('avatar-frame').style.display = 'none';
-
-        loader.load(e.data, (gltf) => {
-            if (model) scene.remove(model);
-
-            model = gltf.scene;
-            model.position.y = -1;
-            scene.add(model);
-
-            mixer = new THREE.AnimationMixer(model);
-            gltf.animations.forEach((clip) => {
-                mixer.clipAction(clip).play();
-            });
-
-            model.traverse((o) => {
-                if (o.morphTargetDictionary && o.name.toLowerCase().includes('head')) {
-                    headMesh = o;
-                }
-            });
-
-            document.getElementById('talkBtn').style.display = 'block';
-        });
-    }
+// ----- Load your Rigged Model from GitHub (keep the exact name) -----
+loader.load('https://raw.githubusercontent.com/username/repo/main/Stylized_Paladin_Clean.glb', (gltf) => {
+    model = gltf.scene;
+    model.position.y = -1;
+    scene.add(model);
 });
 
-// ================= SPEECH =================
+// ----- Gestures Mapping -----
+const gestures = {
+    "hello": {
+        "RightArm": {x: 0.5, y:0, z:0},
+        "LeftArm": {x:0, y:0, z:0},
+        "Spine": {x:0.1, y:0, z:0}
+    },
+    "thank you": {
+        "RightArm": {x:0.3, y:0, z:0},
+        "LeftArm": {x:0.2, y:0, z:0},
+        "Spine": {x:0.05, y:0, z:0}
+    },
+    "yes": {
+        "RightArm": {x:0.2, y:0.1, z:0},
+        "LeftArm": {x:0, y:0, z:0},
+        "Spine": {x:0.05, y:0, z:0}
+    },
+    "no": {
+        "RightArm": {x:-0.2, y:0, z:0},
+        "LeftArm": {x:0, y:0, z:0},
+        "Spine": {x:-0.05, y:0, z:0}
+    }
+};
+
+// ----- Convert AI Text to Gestures -----
+function aiToGesture(text) {
+    return gestures[text.toLowerCase()] || {};
+}
+
+// ----- Move Bones Function -----
+function moveBones(actions) {
+    if (!model) return;
+
+    model.traverse(o => {
+        if (o.isBone && actions[o.name] !== undefined) {
+            o.rotation.x += (actions[o.name].x - o.rotation.x) * 0.2;
+            o.rotation.y += (actions[o.name].y - o.rotation.y) * 0.2;
+            o.rotation.z += (actions[o.name].z - o.rotation.z) * 0.2;
+        }
+    });
+}
+
+// ----- Speech Recognition Setup -----
 const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
 recognition.lang = 'ar-SA';
-
-function getArabicVoice() {
-    return speechSynthesis
-        .getVoices()
-        .find(v => v.lang.startsWith('ar') && v.name.toLowerCase().includes('google'));
-}
+recognition.interimResults = false;
 
 document.getElementById('talkBtn').onclick = () => recognition.start();
 
-recognition.onresult = (e) => {
-    const text = e.results[0][0].transcript;
+recognition.onresult = (event) => {
+    const text = event.results[0][0].transcript;
+    
+    // Convert text to gesture actions
+    const actions = aiToGesture(text);
 
-    const speech = new SpeechSynthesisUtterance(text);
-    speech.lang = 'ar-SA';
-    speech.voice = getArabicVoice();
-    speech.rate = 0.9;
-    speech.pitch = 1;
-
-    speech.onboundary = (ev) => {
-        lipSync(text, ev.charIndex);
-        bodyGesture();
-    };
-
-    window.speechSynthesis.speak(speech);
+    // Apply to model
+    moveBones(actions);
 };
 
-// ================= LIP SYNC =================
-function lipSync(text, index) {
-    if (!headMesh) return;
-
-    const dict = headMesh.morphTargetDictionary;
-    const inf = headMesh.morphTargetInfluences;
-
-    const map = {
-        'ا': 'jawOpen',
-        'م': 'mouthClose',
-        'ب': 'mouthSmile',
-        'ف': 'mouthFunnel',
-        'و': 'mouthPucker'
-    };
-
-    const char = text[index];
-    const target = map[char];
-
-    if (target && dict[target] !== undefined) {
-        inf[dict[target]] = 1;
-        setTimeout(() => (inf[dict[target]] = 0), 120);
-    }
-}
-
-// ================= BODY GESTURES =================
-function bodyGesture() {
-    if (!model) return;
-
-    model.traverse((o) => {
-        if (o.isBone) {
-            if (o.name.includes('Hand')) {
-                o.rotation.z = Math.sin(Date.now() * 0.01) * 0.6;
-            }
-            if (o.name.includes('Finger')) {
-                o.rotation.x = Math.sin(Date.now() * 0.015) * 0.4;
-            }
-        }
-    });
-
-    model.rotation.y = Math.sin(Date.now() * 0.002) * 0.2;
-}
-
-// ================= ANIMATE =================
+// ----- Animate Loop -----
 function animate() {
     requestAnimationFrame(animate);
 
-    const t = clock.getElapsedTime();
-    if (mixer) mixer.update(clock.getDelta());
-
+    // Idle subtle movement
     if (model) {
-        const spine = model.getObjectByName('Spine2');
-        const hips = model.getObjectByName('Hips');
-
-        if (spine) spine.rotation.x = Math.sin(t * 1.2) * 0.04;
-        if (hips) hips.position.y = Math.sin(t * 1.1) * 0.015;
+        const t = Date.now() * 0.001;
+        model.rotation.y = Math.sin(t * 0.5) * 0.05;
     }
 
-    if (headMesh) {
-        const dict = headMesh.morphTargetDictionary;
-        const inf = headMesh.morphTargetInfluences;
-
-        const blink =
-            Math.sin(t * 3 + Math.random()) > 0.97 ? 1 : 0;
-
-        if (dict.eyeBlinkLeft !== undefined)
-            inf[dict.eyeBlinkLeft] = blink;
-        if (dict.eyeBlinkRight !== undefined)
-            inf[dict.eyeBlinkRight] = blink;
-    }
-
+    controls.update();
     renderer.render(scene, camera);
 }
-
-init();
 animate();
