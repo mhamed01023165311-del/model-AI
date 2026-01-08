@@ -1,49 +1,57 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 
-let scene, camera, renderer, model, headMesh, clock = new THREE.Clock();
+let scene, camera, renderer, model, clock = new THREE.Clock();
 const loader = new FBXLoader();
 
 function init() {
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x050505);
+    scene.background = new THREE.Color(0x0a0a0a); // خلفية تبرز المجسم
 
-    // 1. الكاميرا هنا مضبوطة عشان تجيب المجسم الكبير من بعيد
-    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 5000);
-    camera.position.set(0, 200, 600); 
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 10000);
+    camera.position.set(0, 200, 500); // وضعية افتراضية
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     document.body.appendChild(renderer.domElement);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 2));
-    const light = new THREE.DirectionalLight(0xffffff, 2);
-    light.position.set(100, 500, 100);
-    scene.add(light);
+    // إضاءة قوية جداً من كل الزوايا لإظهار تفاصيل الـ FBX
+    scene.add(new THREE.AmbientLight(0xffffff, 3)); 
+    const pointLight = new THREE.PointLight(0xffffff, 2);
+    pointLight.position.set(200, 500, 200);
+    scene.add(pointLight);
 
-    // تحميل الملفStylized_Paladin.fbx
     loader.load('models/Stylized_Paladin.fbx', (object) => {
         model = object;
         
-        // 2. السر هنا: تصغير الموديل لـ 1% من حجمه عشان يبان طبيعي في المتصفح
-        model.scale.set(0.1, 0.1, 0.1); 
+        // ضبط الحجم والمكان
+        model.scale.set(0.12, 0.12, 0.12); 
         model.position.y = -100;
         scene.add(model);
-        
-        document.getElementById('loader-info').style.display = 'none';
 
-        // الكاميرا هتبص على نص المجسم بالضبط
+        // إظهار الموديل حتى لو الصور ناقصة (بإضافة لمعان معدني)
+        model.traverse(child => {
+            if (child.isMesh) {
+                child.material.color.setHex(0xcccccc); // لون رمادي فاتح كالحديد
+                child.material.shininess = 100;
+            }
+        });
+
+        // زووم تلقائي على المجسم
         const box = new THREE.Box3().setFromObject(model);
-        camera.lookAt(box.getCenter(new THREE.Vector3()));
-        
-        console.log("البالادين جاهز!");
+        const center = box.getCenter(new THREE.Vector3());
+        camera.lookAt(center);
+
+        document.getElementById('loader-info').style.display = 'none';
+        console.log("البالادين جاهز للعمل");
     }, (xhr) => {
         const percent = Math.round((xhr.loaded / xhr.total) * 100);
-        document.getElementById('loader-info').innerText = "جاري التحميل: " + percent + "%";
+        document.getElementById('loader-info').innerText = "تحميل: " + percent + "%";
     });
 }
 
-// محرك لغة الإشارة (تحريك الأصابع بناءً على بنية العظام في ملفك)
+// محرك الكلام وحركة اليدين
 const talkBtn = document.getElementById('talkBtn');
 const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
 recognition.lang = 'ar-SA';
@@ -58,27 +66,29 @@ recognition.onresult = (event) => {
     speech.onboundary = () => {
         if (model) {
             model.traverse(o => {
-                // البحث عن عظام الأصابع واليد في هيكل البالادين
-                if (o.isBone && (o.name.includes('Finger') || o.name.includes('Hand') || o.name.includes('DEF'))) {
-                    o.rotation.z = (Math.random() - 0.5) * 0.4;
+                // تحريك الأصابع والرسغ (لغة إشارة)
+                if (o.isBone && (o.name.toLowerCase().includes('finger') || o.name.toLowerCase().includes('hand'))) {
+                    o.rotation.y = (Math.random() - 0.5) * 0.7;
+                    o.rotation.z = (Math.random() - 0.5) * 0.7;
                 }
             });
-            // حركة الجسم يمين وشمال
-            model.rotation.y = Math.sin(Date.now() * 0.005) * 0.1;
+            // تمايل الجسم بالكامل مع نبرة الصوت
+            model.rotation.y = Math.sin(Date.now() * 0.005) * 0.2;
         }
     };
+
     window.speechSynthesis.speak(speech);
 };
 
 function animate() {
     requestAnimationFrame(animate);
+    const t = clock.getElapsedTime();
     if (model) {
-        // حركة تنفس طبيعية
-        const t = clock.getElapsedTime();
-        model.position.y = -100 + Math.sin(t * 1.5) * 2;
+        // حركة "نبض الحياة" المستمرة
+        const spine = model.getObjectByName('Spine2') || model.getObjectByName('Spine');
+        if (spine) spine.rotation.x = Math.sin(t * 1.2) * 0.05;
     }
     renderer.render(scene, camera);
 }
 
-init();
-animate();
+init(); animate();
