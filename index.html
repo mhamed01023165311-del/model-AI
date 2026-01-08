@@ -2,21 +2,23 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>AI Digital Twin - Full</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>النسخة الرقمية المتفاعلة</title>
     <style>
         body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; }
-        #avatar-frame { display: none; position: absolute; top: 10%; left: 10%; width: 80%; height: 80%; z-index: 100; border: none; border-radius: 20px; }
+        #avatar-frame { display: none; position: absolute; top: 10%; left: 10%; width: 80%; height: 80%; z-index: 100; border: 4px solid #00ff88; border-radius: 20px; }
         #ui { position: absolute; bottom: 30px; width: 100%; display: flex; justify-content: center; gap: 15px; z-index: 10; }
-        button { padding: 15px 30px; border-radius: 50px; border: none; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        .setup { background: #00ff88; color: #000; }
-        .talk { background: #2196F3; color: #fff; display: none; }
+        button { padding: 15px 30px; border-radius: 50px; border: none; cursor: pointer; font-weight: bold; font-size: 16px; transition: 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        #setupBtn { background: #00ff88; color: #000; }
+        #talkBtn { background: #2196F3; color: #fff; display: none; }
+        button:hover { transform: scale(1.05); }
     </style>
 </head>
 <body>
     <iframe id="avatar-frame" src="https://demo.readyplayer.me/avatar?frameApi"></iframe>
     <div id="ui">
-        <button id="setupBtn" class="setup">إنشاء المجسم من صورتك</button>
-        <button id="talkBtn" class="talk">اضغط للتحدث</button>
+        <button id="setupBtn">إعداد المجسم (صوّر نفسك)</button>
+        <button id="talkBtn">ابدأ التحدث الآن</button>
     </div>
     <script type="importmap"> { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } } </script>
     <script type="module" src="main.js"></script>
